@@ -28,10 +28,6 @@ contract UniswapConfig {
         bool isUniswapReversed;
     }
 
-    /// @notice The max number of tokens this contract is hardcoded to support
-    /// @dev Do not change this variable without updating all the fields throughout the contract.
-    uint public maxTokens;
-
     /// @notice The number of tokens this contract actually supports
     uint public numTokens;
 
@@ -43,10 +39,8 @@ contract UniswapConfig {
      * @notice Construct an immutable store of configs into the contract data
      * @param configs The configs for the supported assets
      */
-    constructor(TokenConfig[] memory configs, uint _maxTokens) public {
+    constructor(TokenConfig[] memory configs) public {
         admin = msg.sender;
-        maxTokens = _maxTokens;
-        require(configs.length <= maxTokens, "too many configs");
         for (uint256 i = 0; i < configs.length; i++) _configs.push(configs[i]);
         numTokens = _configs.length;
     }
@@ -58,7 +52,6 @@ contract UniswapConfig {
 
     function add(TokenConfig[] memory configs) external virtual {
         require(msg.sender == admin, "msg.sender is not admin");
-        require(_configs.length + configs.length <= maxTokens, "too many configs");
         for (uint256 i = 0; i < configs.length; i++) _configs.push(configs[i]);
         numTokens = _configs.length;
     }

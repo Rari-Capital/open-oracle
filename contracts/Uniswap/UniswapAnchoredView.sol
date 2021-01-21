@@ -80,8 +80,7 @@ contract UniswapAnchoredView is UniswapConfig {
                 address reporter_,
                 uint anchorToleranceMantissa_,
                 uint anchorPeriod_,
-                TokenConfig[] memory configs,
-                uint maxTokens) UniswapConfig(configs, maxTokens) public {
+                TokenConfig[] memory configs) UniswapConfig(configs) public {
         priceData = priceData_;
         reporter = reporter_;
         anchorPeriod = anchorPeriod_;
@@ -115,7 +114,6 @@ contract UniswapAnchoredView is UniswapConfig {
      */
     function add(TokenConfig[] memory configs) external override {
         require(msg.sender == admin, "msg.sender is not admin");
-        require(_configs.length + configs.length <= maxTokens, "too many configs");
         for (uint256 i = 0; i < configs.length; i++) _configs.push(configs[i]);
         numTokens = _configs.length;
         

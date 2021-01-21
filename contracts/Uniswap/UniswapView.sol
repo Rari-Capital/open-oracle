@@ -53,8 +53,7 @@ contract UniswapView is UniswapConfig {
      * @param configs The static token configurations which define what prices are supported and how
      */
     constructor(uint anchorPeriod_,
-                TokenConfig[] memory configs,
-                uint maxTokens) UniswapConfig(configs, maxTokens) public {
+                TokenConfig[] memory configs) UniswapConfig(configs) public {
         anchorPeriod = anchorPeriod_;
 
         for (uint i = 0; i < configs.length; i++) {
@@ -82,7 +81,6 @@ contract UniswapView is UniswapConfig {
      */
     function add(TokenConfig[] memory configs) external override {
         require(msg.sender == admin, "msg.sender is not admin");
-        require(_configs.length + configs.length <= maxTokens, "too many configs");
         for (uint256 i = 0; i < configs.length; i++) _configs.push(configs[i]);
         numTokens = _configs.length;
 
