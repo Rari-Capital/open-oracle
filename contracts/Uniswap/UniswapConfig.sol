@@ -53,8 +53,7 @@ contract UniswapConfig {
     }
 
     function getCTokenIndex(address cToken) internal view returns (uint) {
-        for (uint256 i = 0; i < _configs.length; i++) if (CErc20(cToken).underlying() == _configs[i].underlying) return i;
-        return uint(-1);
+        return getUnderlyingIndex(CErc20(cToken).underlying());
     }
 
     function getUnderlyingIndex(address underlying) internal view returns (uint) {
