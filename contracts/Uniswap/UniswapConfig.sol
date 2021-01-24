@@ -31,8 +31,10 @@ contract UniswapConfig {
     /// @notice The number of tokens this contract actually supports
     uint public numTokens;
 
+    /// @dev Token config objects
     TokenConfig[] internal _configs;
     
+    /// @notice Admin address
     address public admin;
 
     /**
@@ -50,12 +52,6 @@ contract UniswapConfig {
         admin = newAdmin;
     }
 
-    function add(TokenConfig[] memory configs) external virtual {
-        require(msg.sender == admin, "msg.sender is not admin");
-        for (uint256 i = 0; i < configs.length; i++) _configs.push(configs[i]);
-        numTokens = _configs.length;
-    }
-
     function getCTokenIndex(address cToken) internal view returns (uint) {
         for (uint256 i = 0; i < _configs.length; i++) if (CErc20(cToken).underlying() == _configs[i].underlying) return i;
         return uint(-1);
@@ -63,11 +59,6 @@ contract UniswapConfig {
 
     function getUnderlyingIndex(address underlying) internal view returns (uint) {
         for (uint256 i = 0; i < _configs.length; i++) if (underlying == _configs[i].underlying) return i;
-        return uint(-1);
-    }
-
-    function getSymbolHashIndex(bytes32 symbolHash) internal view returns (uint) {
-        for (uint256 i = 0; i < _configs.length; i++) if (symbolHash == _configs[i].symbolHash) return i;
         return uint(-1);
     }
 
@@ -79,29 +70,6 @@ contract UniswapConfig {
     function getTokenConfig(uint i) public view returns (TokenConfig memory) {
         require(i < numTokens, "token config not found");
         return _configs[i];
-    }
-
-    /**
-     * @notice Get the config for symbol
-     * @param symbol The symbol of the config to get
-     * @return The config object
-     */
-    function getTokenConfigBySymbol(string memory symbol) public view returns (TokenConfig memory) {
-        return getTokenConfigBySymbolHash(keccak256(abi.encodePacked(symbol)));
-    }
-
-    /**
-     * @notice Get the config for the symbolHash
-     * @param symbolHash The keccack256 of the symbol of the config to get
-     * @return The config object
-     */
-    function getTokenConfigBySymbolHash(bytes32 symbolHash) public view returns (TokenConfig memory) {
-        uint index = getSymbolHashIndex(symbolHash);
-        if (index != uint(-1)) {
-            return getTokenConfig(index);
-        }
-
-        revert("token config not found");
     }
 
     /**

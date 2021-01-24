@@ -89,6 +89,15 @@ contract UniswapAnchoredView is UniswapConfig {
         upperBoundAnchorRatio = anchorToleranceMantissa_ > uint(-1) - 100e16 ? uint(-1) : 100e16 + anchorToleranceMantissa_;
         lowerBoundAnchorRatio = anchorToleranceMantissa_ < 100e16 ? 100e16 - anchorToleranceMantissa_ : 1;
 
+        // Initialize token configs
+        initConfigs(configs);
+    }
+
+    /**
+     * @notice Initialize token configs
+     * @param configs The static token configurations which define what prices are supported and how
+     */
+    function initConfigs(TokenConfig[] memory configs) internal {
         for (uint i = 0; i < configs.length; i++) {
             TokenConfig memory config = configs[i];
             require(config.baseUnit > 0, "baseUnit must be greater than zero");
@@ -112,28 +121,11 @@ contract UniswapAnchoredView is UniswapConfig {
      * @notice Add new asset(s)
      * @param configs The static token configurations which define what prices are supported and how
      */
-    function add(TokenConfig[] memory configs) external override {
+    function add(TokenConfig[] memory configs) external {
         require(msg.sender == admin, "msg.sender is not admin");
         for (uint256 i = 0; i < configs.length; i++) _configs.push(configs[i]);
         numTokens = _configs.length;
-        
-        for (uint i = 0; i < configs.length; i++) {
-            TokenConfig memory config = configs[i];
-            require(config.baseUnit > 0, "baseUnit must be greater than zero");
-            address uniswapMarket = config.uniswapMarket;
-            if (config.priceSource == PriceSource.REPORTER) {
-                require(uniswapMarket != address(0), "reported prices must have an anchor");
-                bytes32 symbolHash = config.symbolHash;
-                uint cumulativePrice = currentCumulativePrice(config);
-                oldObservations[symbolHash].timestamp = block.timestamp;
-                newObservations[symbolHash].timestamp = block.timestamp;
-                oldObservations[symbolHash].acc = cumulativePrice;
-                newObservations[symbolHash].acc = cumulativePrice;
-                emit UniswapWindowUpdated(symbolHash, block.timestamp, block.timestamp, cumulativePrice, cumulativePrice);
-            } else {
-                require(uniswapMarket == address(0), "only reported prices utilize an anchor");
-            }
-        }
+        initConfigs(configs);
     }
 
     /**
@@ -338,5 +330,33 @@ contract UniswapAnchoredView is UniswapConfig {
         uint c = a * b;
         require(c / a == b, "multiplication overflow");
         return c;
+    }
+
+    function getSymbolHashIndex(bytes32 symbolHash) internal view returns (uint) {
+        for (uint256 i = 0; i < _configs.length; i++) if (symbolHash == _configs[i].symbolHash) return i;
+        return uint(-1);
+    }
+
+    /**
+     * @notice Get the config for symbol
+     * @param symbol The symbol of the config to get
+     * @return The config object
+     */
+    function getTokenConfigBySymbol(string memory symbol) public view returns (TokenConfig memory) {
+        return getTokenConfigBySymbolHash(keccak256(abi.encodePacked(symbol)));
+    }
+
+    /**
+     * @notice Get the config for the symbolHash
+     * @param symbolHash The keccack256 of the symbol of the config to get
+     * @return The config object
+     */
+    function getTokenConfigBySymbolHash(bytes32 symbolHash) public view returns (TokenConfig memory) {
+        uint index = getSymbolHashIndex(symbolHash);
+        if (index != uint(-1)) {
+            return getTokenConfig(index);
+        }
+
+        revert("token config not found");
     }
 }
