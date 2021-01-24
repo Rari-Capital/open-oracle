@@ -33,6 +33,12 @@ contract UniswapConfig {
 
     /// @dev Token config objects
     TokenConfig[] internal _configs;
+
+    /// @dev Maps underlying addresses to token config indexes
+    mapping(address => uint256) internal _configIndexesByUnderlying;
+
+    /// @dev Maps underlying addresses to booleans indicating if they have token configs
+    mapping(address => bool) internal _configPresenceByUnderlying;
     
     /// @notice Admin address
     address public admin;
@@ -43,7 +49,13 @@ contract UniswapConfig {
      */
     constructor(TokenConfig[] memory configs) public {
         admin = msg.sender;
-        for (uint256 i = 0; i < configs.length; i++) _configs.push(configs[i]);
+
+        for (uint256 i = 0; i < configs.length; i++) {
+            _configs.push(configs[i]);
+            _configIndexesByUnderlying[configs[i].underlying] = i;
+            _configPresenceByUnderlying[configs[i].underlying] = true;
+        }
+
         numTokens = _configs.length;
     }
 
@@ -57,8 +69,7 @@ contract UniswapConfig {
     }
 
     function getUnderlyingIndex(address underlying) internal view returns (uint) {
-        for (uint256 i = 0; i < _configs.length; i++) if (underlying == _configs[i].underlying) return i;
-        return uint(-1);
+        return _configPresenceByUnderlying[underlying] ? _configIndexesByUnderlying[underlying] : uint(-1);
     }
 
     /**

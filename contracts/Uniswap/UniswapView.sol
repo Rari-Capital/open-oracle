@@ -143,7 +143,13 @@ contract UniswapView is UniswapConfig {
     function add(TokenConfig[] memory configs) external {
         if (!isPublic) require(msg.sender == admin, "msg.sender is not admin");
         if (isPublic) checkTokenConfigs(configs, PriceSource.TWAP);
-        for (uint256 i = 0; i < configs.length; i++) _configs.push(configs[i]);
+
+        for (uint256 i = 0; i < configs.length; i++) {
+            _configs.push(configs[i]);
+            _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
+            _configPresenceByUnderlying[configs[i].underlying] = true;
+        }
+
         numTokens = _configs.length;
         initConfigs(configs);
     }
