@@ -87,7 +87,7 @@ contract UniswapView is UniswapConfig {
     function checkTokenConfigs(TokenConfig[] memory configs, PriceSource priceSource) internal view {
         for (uint256 i = 0; i < configs.length; i++) {
             // Check symbolHash against underlying symbol
-            if (configs[i].symbolHash == ethHash) require(configs[i].underlying == address(0));
+            if (configs[i].symbolHash == ethHash) require(configs[i].underlying == address(0), "If symbol is ETH, underlying must be the zero address.");
             else require(keccak256(abi.encodePacked(IERC20(configs[i].underlying).symbol())) == configs[i].symbolHash, "Symbol mismatch between token config and ERC20 symbol method.");
 
             // Check baseUnit against underlying decimals
@@ -105,8 +105,8 @@ contract UniswapView is UniswapConfig {
                 require(configs[i].isUniswapReversed, "ETH config Uniswap market is not USDC/ETH.");
             } else {
                 IUniswapV2Pair pair = IUniswapV2Pair(UniswapV2Library.pairFor(UNISWAP_V2_FACTORY_ADDRESS, configs[i].underlying, WETH_ADDRESS));
-                address token0 = pair.token0();
                 require(configs[i].uniswapMarket == address(pair), "Token config Uniswap market is not correct.");
+                address token0 = pair.token0();
                 require((token0 == configs[i].underlying && !configs[i].isUniswapReversed) || (token0 != configs[i].underlying && configs[i].isUniswapReversed), "Token config Uniswap reversal is incorrect.");
             }
         }
