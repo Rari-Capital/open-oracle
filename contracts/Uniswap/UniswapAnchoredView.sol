@@ -130,7 +130,6 @@ contract UniswapAnchoredView is UniswapConfig {
             _configPresenceByUnderlying[configs[i].underlying] = true;
         }
 
-        numTokens = _configs.length;
         initConfigs(configs);
     }
 

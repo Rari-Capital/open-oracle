@@ -28,9 +28,6 @@ contract UniswapConfig {
         bool isUniswapReversed;
     }
 
-    /// @notice The number of tokens this contract actually supports
-    uint public numTokens;
-
     /// @dev Token config objects
     TokenConfig[] internal _configs;
 
@@ -55,13 +52,16 @@ contract UniswapConfig {
             _configIndexesByUnderlying[configs[i].underlying] = i;
             _configPresenceByUnderlying[configs[i].underlying] = true;
         }
-
-        numTokens = _configs.length;
     }
 
     function changeAdmin(address newAdmin) external {
         require(msg.sender == admin, "msg.sender is not admin");
         admin = newAdmin;
+    }
+
+    /// @notice The number of tokens this contract actually supports
+    function numTokens() public view returns (uint256) {
+        return _configs.length;
     }
 
     function getCTokenIndex(address cToken) internal view returns (uint) {
@@ -78,7 +78,7 @@ contract UniswapConfig {
      * @return The config object
      */
     function getTokenConfig(uint i) public view returns (TokenConfig memory) {
-        require(i < numTokens, "token config not found");
+        require(i < numTokens(), "token config not found");
         return _configs[i];
     }
 

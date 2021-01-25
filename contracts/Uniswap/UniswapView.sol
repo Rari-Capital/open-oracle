@@ -63,7 +63,7 @@ contract UniswapView is UniswapConfig {
 
         if (isPublic) {
             admin = address(0);
-            checkTokenConfigs(configs, PriceSource.TWAP);
+            checkTokenConfigs(configs);
         }
 
         initConfigs(configs);
@@ -82,28 +82,40 @@ contract UniswapView is UniswapConfig {
     /**
      * @dev Verifies token configs
      * @param configs The configs for the supported assets
-     * @param priceSource The required price source for all assets
      */
-    function checkTokenConfigs(TokenConfig[] memory configs, PriceSource priceSource) internal view {
+    function checkTokenConfigs(TokenConfig[] memory configs) internal view {
         for (uint256 i = 0; i < configs.length; i++) {
+            // Check symbolHash for ETH
+            require(configs[i].symbolHash != ethHash, "ETH does not need a price feed as all price feeds are based in ETH.");
+
             // Check symbolHash against underlying symbol
-            if (configs[i].symbolHash == ethHash) require(configs[i].underlying == address(0), "If symbol is ETH, underlying must be the zero address.");
-            else require(keccak256(abi.encodePacked(IERC20(configs[i].underlying).symbol())) == configs[i].symbolHash, "Symbol mismatch between token config and ERC20 symbol method.");
+            require(keccak256(abi.encodePacked(IERC20(configs[i].underlying).symbol())) == configs[i].symbolHash, "Symbol mismatch between token config and ERC20 symbol method.");
+
+            // Check for token config for underlying
+            require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
 
             // Check baseUnit against underlying decimals
             require(10 ** uint256(IERC20(configs[i].underlying).decimals()) == configs[i].baseUnit, "Incorrect token config base unit.");
 
-            // Check price source
-            require(configs[i].priceSource == priceSource, "Incorrect token config price source.");
+            // Check for WETH
+            if (configs[i].underlying == WETH_ADDRESS) {
+                // Check price source
+                require(configs[i].priceSource == PriceSource.FIXED_ETH, "Invalid WETH token config price source: must be FIXED_ETH.");
+                
+                // Check fixed price
+                require(configs[i].fixedPrice == 1e18, "WETH token config fixed price must be 1e18.");
 
-            // Check fixed price
-            require(configs[i].fixedPrice == 0, "Token config fixed price must be 0.");
-
-            // Check uniswapMarket and isUniswapReversed
-            if (configs[i].symbolHash == ethHash) {
-                require(configs[i].uniswapMarket == 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc, "ETH config Uniswap market is not USDC/ETH.");
-                require(configs[i].isUniswapReversed, "ETH config Uniswap market is not USDC/ETH.");
+                // Check uniswapMarket and isUniswapReversed
+                require(configs[i].uniswapMarket == address(0), "WETH Uniswap market not necessary.");
+                configs[i].isUniswapReversed = false;
             } else {
+                // Check price source
+                require(configs[i].priceSource == PriceSource.TWAP, "Invalid token config price source: must be TWAP.");
+
+                // Check fixed price
+                require(configs[i].fixedPrice == 0, "Token config fixed price must be 0.");
+
+                // Check uniswapMarket and isUniswapReversed
                 IUniswapV2Pair pair = IUniswapV2Pair(UniswapV2Library.pairFor(UNISWAP_V2_FACTORY_ADDRESS, configs[i].underlying, WETH_ADDRESS));
                 require(configs[i].uniswapMarket == address(pair), "Token config Uniswap market is not correct.");
                 address token0 = pair.token0();
@@ -142,7 +154,7 @@ contract UniswapView is UniswapConfig {
      */
     function add(TokenConfig[] memory configs) external {
         if (!isPublic) require(msg.sender == admin, "msg.sender is not admin");
-        if (isPublic) checkTokenConfigs(configs, PriceSource.TWAP);
+        if (isPublic) checkTokenConfigs(configs);
 
         for (uint256 i = 0; i < configs.length; i++) {
             _configs.push(configs[i]);
@@ -150,7 +162,6 @@ contract UniswapView is UniswapConfig {
             _configPresenceByUnderlying[configs[i].underlying] = true;
         }
 
-        numTokens = _configs.length;
         initConfigs(configs);
     }
 
@@ -165,15 +176,11 @@ contract UniswapView is UniswapConfig {
     }
 
     function priceInternal(TokenConfig memory config) internal view returns (uint) {
-        if (config.priceSource == PriceSource.TWAP) {
-            uint usdPerEth = prices[address(0)];
-            require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
-            return mul(prices[config.underlying], ethBaseUnit) / usdPerEth;
-        }
+        if (config.priceSource == PriceSource.TWAP) return prices[config.underlying];
         if (config.priceSource == PriceSource.FIXED_USD) {
-            uint usdPerEth = prices[address(0)];
-            require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
-            return mul(config.fixedPrice, ethBaseUnit) / usdPerEth;
+            uint ethPerUsd = prices[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48];
+            require(ethPerUsd > 0, "USDC price not set, cannot convert from USD to ETH");
+            return mul(config.fixedPrice, ethPerUsd) / 1e6;
         }
         if (config.priceSource == PriceSource.FIXED_ETH) return config.fixedPrice;
     }
@@ -197,25 +204,16 @@ contract UniswapView is UniswapConfig {
      * @param underlyings The underlying token addresses for which to get and post TWAPs
      */
     function postPrices(address[] calldata underlyings) external {
-        uint ethPrice = fetchEthPrice();
-
         // Try to update the view storage
         for (uint i = 0; i < underlyings.length; i++) {
-            postPriceInternal(underlyings[i], ethPrice);
+            postPriceInternal(underlyings[i]);
         }
     }
 
-    function postPriceInternal(address underlying, uint ethPrice) internal {
+    function postPriceInternal(address underlying) internal {
         TokenConfig memory config = getTokenConfigByUnderlying(underlying);
         require(config.priceSource == PriceSource.TWAP, "only TWAP prices get posted");
-
-        uint anchorPrice;
-        if (underlying == address(0)) {
-            anchorPrice = ethPrice;
-        } else {
-            anchorPrice = fetchAnchorPrice(underlying, config, ethPrice);
-        }
-
+        uint anchorPrice = fetchAnchorPrice(underlying, config);
         prices[underlying] = anchorPrice;
         emit PriceUpdated(underlying, anchorPrice);
     }
@@ -233,18 +231,9 @@ contract UniswapView is UniswapConfig {
     }
 
     /**
-     * @dev Fetches the current eth/usd price from uniswap, with 6 decimals of precision.
-     *  Conversion factor is 1e18 for eth/usdc market, since we decode uniswap price statically with 18 decimals.
+     * @dev Fetches the current token/ETH price from Uniswap, with 18 decimals of precision.
      */
-    function fetchEthPrice() internal returns (uint) {
-        return fetchAnchorPrice(address(0), getTokenConfigByUnderlying(address(0)), ethBaseUnit);
-    }
-
-    /**
-     * @dev Fetches the current token/usd price from uniswap, with 6 decimals of precision.
-     * @param conversionFactor 1e18 if seeking the ETH price, and a 6 decimal ETH-USDC price in the case of other assets
-     */
-    function fetchAnchorPrice(address underlying, TokenConfig memory config, uint conversionFactor) internal virtual returns (uint) {
+    function fetchAnchorPrice(address underlying, TokenConfig memory config) internal virtual returns (uint) {
         (uint nowCumulativePrice, uint oldCumulativePrice, uint oldTimestamp) = pokeWindowValues(config);
 
         // This should be impossible, but better safe than sorry
@@ -255,11 +244,10 @@ contract UniswapView is UniswapConfig {
         // Underflow is a property of the accumulators: https://uniswap.org/audit.html#orgc9b3190
         FixedPoint.uq112x112 memory priceAverage = FixedPoint.uq112x112(uint224((nowCumulativePrice - oldCumulativePrice) / timeElapsed));
         uint rawUniswapPriceMantissa = priceAverage.decode112with18();
-        uint unscaledPriceMantissa = mul(rawUniswapPriceMantissa, conversionFactor);
+        uint unscaledPriceMantissa = mul(rawUniswapPriceMantissa, 1e18);
         uint anchorPrice;
 
         // Adjust rawUniswapPrice according to the units of the non-ETH asset
-        // In the case of ETH, we would have to scale by 1e6 / USDC_UNITS, but since baseUnit2 is 1e6 (USDC), it cancels
         if (config.isUniswapReversed) {
             // unscaledPriceMantissa * ethBaseUnit / config.baseUnit / expScale, but we simplify bc ethBaseUnit == expScale
             anchorPrice = unscaledPriceMantissa / config.baseUnit;
