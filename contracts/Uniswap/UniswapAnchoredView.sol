@@ -80,7 +80,8 @@ contract UniswapAnchoredView is UniswapConfig {
                 address reporter_,
                 uint anchorToleranceMantissa_,
                 uint anchorPeriod_,
-                TokenConfig[] memory configs) UniswapConfig(configs) public {
+                TokenConfig[] memory configs,
+                bool _canAdminOverwrite) UniswapConfig(configs, _canAdminOverwrite) public {
         priceData = priceData_;
         reporter = reporter_;
         anchorPeriod = anchorPeriod_;
@@ -125,6 +126,7 @@ contract UniswapAnchoredView is UniswapConfig {
         require(msg.sender == admin, "msg.sender is not admin");
 
         for (uint256 i = 0; i < configs.length; i++) {
+            if (!canAdminOverwrite) require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
             _configs.push(configs[i]);
             _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
             _configPresenceByUnderlying[configs[i].underlying] = true;

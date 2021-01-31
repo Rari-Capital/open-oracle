@@ -39,15 +39,20 @@ contract UniswapConfig {
     
     /// @notice Admin address
     address public admin;
+    
+    /// @notice Whether or not the admin can overwrite existing token configs
+    bool public canAdminOverwrite;
 
     /**
      * @notice Construct an immutable store of configs into the contract data
      * @param configs The configs for the supported assets
      */
-    constructor(TokenConfig[] memory configs) public {
+    constructor(TokenConfig[] memory configs, bool _canAdminOverwrite) public {
         admin = msg.sender;
+        canAdminOverwrite = _canAdminOverwrite;
 
         for (uint256 i = 0; i < configs.length; i++) {
+            if (!canAdminOverwrite) require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
             _configs.push(configs[i]);
             _configIndexesByUnderlying[configs[i].underlying] = i;
             _configPresenceByUnderlying[configs[i].underlying] = true;

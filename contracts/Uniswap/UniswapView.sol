@@ -57,12 +57,14 @@ contract UniswapView is UniswapConfig {
      */
     constructor(uint anchorPeriod_,
                 TokenConfig[] memory configs,
-                bool _isPublic) UniswapConfig(configs) public {
+                bool _canAdminOverwrite,
+                bool _isPublic) UniswapConfig(configs, _canAdminOverwrite) public {
         anchorPeriod = anchorPeriod_;
         isPublic = _isPublic;
 
         if (isPublic) {
             admin = address(0);
+            require(!canAdminOverwrite, "canAdminOverwrite must be set to false for public UniswapView contracts.");
             checkTokenConfigs(configs);
         }
 
@@ -90,9 +92,6 @@ contract UniswapView is UniswapConfig {
 
             // Check symbolHash against underlying symbol
             require(keccak256(abi.encodePacked(IERC20(configs[i].underlying).symbol())) == configs[i].symbolHash, "Symbol mismatch between token config and ERC20 symbol method.");
-
-            // Check for token config for underlying
-            require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
 
             // Check baseUnit against underlying decimals
             require(10 ** uint256(IERC20(configs[i].underlying).decimals()) == configs[i].baseUnit, "Incorrect token config base unit.");
@@ -157,6 +156,7 @@ contract UniswapView is UniswapConfig {
         if (isPublic) checkTokenConfigs(configs);
 
         for (uint256 i = 0; i < configs.length; i++) {
+            if (!canAdminOverwrite) require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
             _configs.push(configs[i]);
             _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
             _configPresenceByUnderlying[configs[i].underlying] = true;

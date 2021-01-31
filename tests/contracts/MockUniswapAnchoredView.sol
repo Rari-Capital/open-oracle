@@ -12,7 +12,7 @@ contract MockUniswapAnchoredView is UniswapAnchoredView {
                 address reporter_,
                 uint anchorToleranceMantissa_,
                 uint anchorPeriod_,
-                TokenConfig[] memory configs) UniswapAnchoredView(priceData_, reporter_, anchorToleranceMantissa_, anchorPeriod_, configs) public {}
+                TokenConfig[] memory configs) UniswapAnchoredView(priceData_, reporter_, anchorToleranceMantissa_, anchorPeriod_, configs, false) public {}
 
     function setAnchorPrice(string memory symbol, uint price) external {
         anchorPrices[keccak256(abi.encodePacked(symbol))] = price;
