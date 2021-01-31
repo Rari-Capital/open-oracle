@@ -84,7 +84,6 @@ contract UniswapConfig {
 
     /**
      * @notice Get the config for the cToken
-     * @dev If a config for the cToken is not found, falls back to searching for the underlying.
      * @param cToken The address of the cToken of the config to get
      * @return The config object
      */
@@ -94,7 +93,7 @@ contract UniswapConfig {
             return getTokenConfig(index);
         }
 
-        return getTokenConfigByUnderlying(CErc20(cToken).underlying());
+        revert("token config not found");
     }
 
     /**
