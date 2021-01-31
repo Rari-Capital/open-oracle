@@ -192,6 +192,7 @@ contract UniswapView is UniswapConfig {
      * @return Price denominated in ETH, with 18 decimals, for the given cToken address
      */
     function getUnderlyingPrice(address cToken) external view returns (uint) {
+        if (CErc20(cToken).underlying() == address(0)) return 1e18;
         TokenConfig memory config = getTokenConfigByCToken(cToken);
          // Comptroller needs prices in the format: ${raw price} * 1e(36 - baseUnit)
          // Since the prices in this view have 18 decimals, we must scale them by 1e(36 - 18 - baseUnit)
