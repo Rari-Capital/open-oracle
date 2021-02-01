@@ -249,12 +249,16 @@ contract UniswapView is UniswapConfig {
         uint anchorPrice;
 
         // Adjust rawUniswapPrice according to the units of the non-ETH asset
-        if (config.isUniswapReversed) {
-            // unscaledPriceMantissa * ethBaseUnit / config.baseUnit / expScale, but we simplify bc ethBaseUnit == expScale
-            anchorPrice = unscaledPriceMantissa / config.baseUnit;
-        } else {
-            anchorPrice = mul(unscaledPriceMantissa, config.baseUnit) / ethBaseUnit / expScale;
-        }
+
+        // In the case of non-ETH tokens
+        // a. pokeWindowValues already handled uniswap reversed cases, so priceAverage will always be Token/ETH TWAP price.
+        // b. conversionFactor = 1e18
+        // unscaledPriceMantissa = priceAverage(token/ETH TWAP price) * expScale * conversionFactor
+        // so ->
+        // anchorPrice = priceAverage * tokenBaseUnit / ethBaseUnit * 1e18
+        //             = priceAverage * conversionFactor * tokenBaseUnit / ethBaseUnit
+        //             = unscaledPriceMantissa / expScale * tokenBaseUnit / ethBaseUnit
+        anchorPrice = mul(unscaledPriceMantissa, config.baseUnit) / ethBaseUnit / expScale;
 
         emit AnchorPriceUpdated(underlying, anchorPrice, oldTimestamp, block.timestamp);
 
