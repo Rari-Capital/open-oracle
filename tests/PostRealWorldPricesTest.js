@@ -128,7 +128,7 @@ async function setupUniswapAnchoredView(pairs) {
     {cToken: address(9), underlying: address(9), symbolHash: keccak256("LINK"), baseUnit: uint(1e18), priceSource: PriceSource.REPORTER, fixedPrice: 0, uniswapMarket: pairs.LINK._address, isUniswapReversed: false},
   ];
 
-  return deploy("UniswapAnchoredView", [priceData._address, reporter, anchorMantissa, anchorPeriod, tokenConfigs]);
+  return deploy("UniswapAnchoredView", [priceData._address, reporter, anchorMantissa, anchorPeriod, tokenConfigs, false]);
 }
 
 async function setup() {
@@ -266,28 +266,28 @@ describe("UniswapAnchoredView", () => {
     ]);
 
     const btc_price = await call(uniswapAnchoredView, "price", ["BTC"]);
-    expect(btc_price).toBe("9100190000");
+    expect(btc_price).toBe("40121640984943676564");
 
     const eth_price = await call(uniswapAnchoredView, "price", ["ETH"]);
-    expect(eth_price).toBe("226815000");
+    expect(eth_price).toBe("1000000000000000000");
 
     const dai_price = await call(uniswapAnchoredView, "price", ["DAI"]);
-    expect(dai_price).toBe("1016313");
+    expect(dai_price).toBe("4480801534290060");
 
     const rep_price = await call(uniswapAnchoredView, "price", ["REP"]);
-    expect(rep_price).toBe("17275000");
+    expect(rep_price).toBe("76163393073650331");
 
     const zrx_price = await call(uniswapAnchoredView, "price", ["ZRX"]);
-    expect(zrx_price).toBe("356479");
+    expect(zrx_price).toBe("1571672949319930");
 
     const bat_price = await call(uniswapAnchoredView, "price", ["BAT"]);
-    expect(bat_price).toBe("243858");
+    expect(bat_price).toBe("1075140533033529");
 
     const knc_price = await call(uniswapAnchoredView, "price", ["KNC"]);
-    expect(knc_price).toBe("1634700");
+    expect(knc_price).toBe("7207195291316711");
 
     const link_price = await call(uniswapAnchoredView, "price", ["LINK"]);
-    expect(link_price).toBe("4792460");
+    expect(link_price).toBe("21129378568436831");
   });
 
   it("test price events - PriceUpdated, PriceGuarded", async () => {
