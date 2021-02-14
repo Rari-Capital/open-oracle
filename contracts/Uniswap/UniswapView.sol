@@ -46,6 +46,7 @@ contract UniswapView is UniswapConfig {
     /// @notice The event emitted when the uniswap window changes
     event UniswapWindowUpdated(address indexed underlying, uint oldTimestamp, uint newTimestamp, uint oldPrice, uint newPrice);
 
+    /// @dev The symbol hash for ETH
     bytes32 constant ethHash = keccak256(abi.encodePacked("ETH"));
 
     /**
@@ -53,21 +54,25 @@ contract UniswapView is UniswapConfig {
      * @dev Note that to avoid immature TWAPs, the system must run for at least a single anchorPeriod before using.
      * @param anchorPeriod_ The minimum amount of time required for the old uniswap price accumulator to be replaced
      * @param configs The static token configurations which define what prices are supported and how
+     * @param _canAdminOverwrite Whether or not existing token configs can be overwritten (must be false if `_isPublic` is true)
      * @param _isPublic If true, anyone can add assets, but they will be validated
      */
     constructor(uint anchorPeriod_,
                 TokenConfig[] memory configs,
                 bool _canAdminOverwrite,
                 bool _isPublic) UniswapConfig(configs, _canAdminOverwrite) public {
+        // Initialize variables
         anchorPeriod = anchorPeriod_;
         isPublic = _isPublic;
 
+        // If public, force set admin to 0, require !canAdminOverwrite, and check token configs
         if (isPublic) {
             admin = address(0);
             require(!canAdminOverwrite, "canAdminOverwrite must be set to false for public UniswapView contracts.");
             checkTokenConfigs(configs);
         }
 
+        // Init token configs
         initConfigs(configs);
     }
 
@@ -152,16 +157,12 @@ contract UniswapView is UniswapConfig {
      * @param configs The static token configurations which define what prices are supported and how
      */
     function add(TokenConfig[] memory configs) external {
-        if (!isPublic) require(msg.sender == admin, "msg.sender is not admin");
+        // If public, check token configs; if private, check that msg.sender == admin
         if (isPublic) checkTokenConfigs(configs);
+        else require(msg.sender == admin, "msg.sender is not admin");
 
-        for (uint256 i = 0; i < configs.length; i++) {
-            if (!canAdminOverwrite) require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
-            _configs.push(configs[i]);
-            _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
-            _configPresenceByUnderlying[configs[i].underlying] = true;
-        }
-
+        // Add and init token configs
+        _add(configs);
         initConfigs(configs);
     }
 
@@ -178,6 +179,7 @@ contract UniswapView is UniswapConfig {
     function priceInternal(TokenConfig memory config) internal view returns (uint) {
         if (config.priceSource == PriceSource.TWAP) return prices[config.underlying];
         if (config.priceSource == PriceSource.FIXED_USD) {
+            // Use USDC/ETH price (requires a TWAP-based token config for USDC) to convert from USD to ETH
             uint ethPerUsd = prices[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48];
             require(ethPerUsd > 0, "USDC price not set, cannot convert from USD to ETH");
             return mul(config.fixedPrice, ethPerUsd) / 1e6;
@@ -192,7 +194,7 @@ contract UniswapView is UniswapConfig {
      * @return Price denominated in ETH, with 18 decimals, for the given cToken address
      */
     function getUnderlyingPrice(address cToken) external view returns (uint) {
-        if (CErc20(cToken).underlying() == address(0)) return 1e18;
+        if (CToken(cToken).isCEther()) return ethBaseUnit; // ETH does not have a token config as `prices` is based in ETH
         TokenConfig memory config = getTokenConfigByCToken(cToken);
          // Comptroller needs prices in the format: ${raw price} * 1e(36 - baseUnit)
          // Since the prices in this view have 18 decimals, we must scale them by 1e(36 - 18 - baseUnit)
@@ -220,15 +222,11 @@ contract UniswapView is UniswapConfig {
     }
 
     /**
-     * @dev Fetches the current token/eth price accumulator from uniswap.
+     * @dev Fetches the current token/ETH price accumulator from Uniswap.
      */
     function currentCumulativePrice(TokenConfig memory config) internal view returns (uint) {
         (uint cumulativePrice0, uint cumulativePrice1,) = UniswapV2OracleLibrary.currentCumulativePrices(config.uniswapMarket);
-        if (config.isUniswapReversed) {
-            return cumulativePrice1;
-        } else {
-            return cumulativePrice0;
-        }
+        return config.isUniswapReversed ? cumulativePrice1 : cumulativePrice0;
     }
 
     /**

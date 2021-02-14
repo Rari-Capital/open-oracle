@@ -68,13 +68,21 @@ contract UniswapAnchoredView is UniswapConfig {
     bytes32 constant ethHash = keccak256(abi.encodePacked("ETH"));
     bytes32 constant rotateHash = keccak256(abi.encodePacked("rotate"));
 
+    /// @dev Maps symbol hashes to token config indexes
+    mapping(bytes32 => uint256) internal _configIndexesBySymbolHash;
+
+    /// @dev Maps symbol hashes to booleans indicating if they have token configs
+    mapping(bytes32 => bool) internal _configPresenceBySymbolHash;
+
     /**
      * @notice Construct a uniswap anchored view for a set of token configurations
      * @dev Note that to avoid immature TWAPs, the system must run for at least a single anchorPeriod before using.
+     * @param priceData_ The OpenOraclePriceData contract to use
      * @param reporter_ The reporter whose prices are to be used
      * @param anchorToleranceMantissa_ The percentage tolerance that the reporter may deviate from the uniswap anchor
      * @param anchorPeriod_ The minimum amount of time required for the old uniswap price accumulator to be replaced
      * @param configs The static token configurations which define what prices are supported and how
+     * @param _canAdminOverwrite Whether or not existing token configs can be overwritten
      */
     constructor(OpenOraclePriceData priceData_,
                 address reporter_,
@@ -82,6 +90,7 @@ contract UniswapAnchoredView is UniswapConfig {
                 uint anchorPeriod_,
                 TokenConfig[] memory configs,
                 bool _canAdminOverwrite) UniswapConfig(configs, _canAdminOverwrite) public {
+        // Initialize variables
         priceData = priceData_;
         reporter = reporter_;
         anchorPeriod = anchorPeriod_;
@@ -119,19 +128,37 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
+     * @notice Internal function to add new asset(s)
+     * @param configs The static token configurations which define what prices are supported and how
+     */
+    function _add(TokenConfig[] memory configs) internal {
+        // For each config
+        for (uint256 i = 0; i < configs.length; i++) {
+            // If !canAdminOverwrite, check for existing configs
+            if (!canAdminOverwrite) {
+                require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
+                require(!_configPresenceBySymbolHash[configs[i].symbolHash], "Token config already exists for this symbol hash.");
+            }
+
+            // Add config to state
+            _configs.push(configs[i]);
+            _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
+            _configPresenceByUnderlying[configs[i].underlying] = true;
+            _configIndexesBySymbolHash[configs[i].underlying] = _configs.length - 1;
+            _configPresenceBySymbolHash[configs[i].underlying] = true;
+        }
+    }
+
+    /**
      * @notice Add new asset(s)
      * @param configs The static token configurations which define what prices are supported and how
      */
     function add(TokenConfig[] memory configs) external {
+        // Check msg.sender == admin
         require(msg.sender == admin, "msg.sender is not admin");
 
-        for (uint256 i = 0; i < configs.length; i++) {
-            if (!canAdminOverwrite) require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
-            _configs.push(configs[i]);
-            _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
-            _configPresenceByUnderlying[configs[i].underlying] = true;
-        }
-
+        // Add and init token configs
+        _add(configs);
         initConfigs(configs);
     }
 
@@ -146,7 +173,9 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     function priceInternal(TokenConfig memory config) internal view returns (uint) {
+        if (config.symbolHash == ethHash) return ethBaseUnit;
         if (config.priceSource == PriceSource.REPORTER) {
+            // Prices are stored in terms of USD so we use the ETH/USD price to convert to ETH
             uint usdPerEth = prices[ethHash];
             require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
             return mul(prices[config.symbolHash], ethBaseUnit) / usdPerEth;
@@ -166,6 +195,7 @@ contract UniswapAnchoredView is UniswapConfig {
      * @return Price denominated in ETH, with 18 decimals, for the given cToken address
      */
     function getUnderlyingPrice(address cToken) external view returns (uint) {
+        if (CToken(cToken).isCEther()) return ethBaseUnit;
         TokenConfig memory config = getTokenConfigByCToken(cToken);
          // Comptroller needs prices in the format: ${raw price} * 1e(36 - baseUnit)
          // Since the prices in this view have 18 decimals, we must scale them by 1e(36 - 18 - baseUnit)
@@ -228,15 +258,11 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
-     * @dev Fetches the current token/eth price accumulator from uniswap.
+     * @dev Fetches the current token/ETH price accumulator from Uniswap.
      */
     function currentCumulativePrice(TokenConfig memory config) internal view returns (uint) {
         (uint cumulativePrice0, uint cumulativePrice1,) = UniswapV2OracleLibrary.currentCumulativePrices(config.uniswapMarket);
-        if (config.isUniswapReversed) {
-            return cumulativePrice1;
-        } else {
-            return cumulativePrice0;
-        }
+        return config.isUniswapReversed ? cumulativePrice1 : cumulativePrice0;
     }
 
     /**

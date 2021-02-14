@@ -3,6 +3,10 @@
 pragma solidity ^0.6.10;
 pragma experimental ABIEncoderV2;
 
+interface CToken {
+    function isCEther() external view returns (bool);
+}
+
 interface CErc20 {
     function underlying() external view returns (address);
 }
@@ -40,25 +44,41 @@ contract UniswapConfig {
     /// @notice Admin address
     address public admin;
     
-    /// @notice Whether or not the admin can overwrite existing token configs
+    /// @notice Whether or not existing token configs can be overwritten
     bool public canAdminOverwrite;
 
     /**
      * @notice Construct an immutable store of configs into the contract data
      * @param configs The configs for the supported assets
+     * @param _canAdminOverwrite Whether or not existing token configs can be overwritten
      */
     constructor(TokenConfig[] memory configs, bool _canAdminOverwrite) public {
+        // Initialize variables
         admin = msg.sender;
         canAdminOverwrite = _canAdminOverwrite;
 
+        // Add configs
+        _add(configs);
+    }
+
+    /**
+     * @dev Internal function to add new asset(s)
+     * @param configs The static token configurations which define what prices are supported and how
+     */
+    function _add(TokenConfig[] memory configs) internal {
+        // For each config
         for (uint256 i = 0; i < configs.length; i++) {
+            // If !canAdminOverwrite, check for existing config
             if (!canAdminOverwrite) require(!_configPresenceByUnderlying[configs[i].underlying], "Token config already exists for this underlying token address.");
+
+            // Add config to state
             _configs.push(configs[i]);
-            _configIndexesByUnderlying[configs[i].underlying] = i;
+            _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
             _configPresenceByUnderlying[configs[i].underlying] = true;
         }
     }
 
+    /// @notice Changes the admin
     function changeAdmin(address newAdmin) external {
         require(msg.sender == admin, "msg.sender is not admin");
         admin = newAdmin;
@@ -69,10 +89,12 @@ contract UniswapConfig {
         return _configs.length;
     }
 
+    /// @dev Get token config index by cToken address
     function getCTokenIndex(address cToken) internal view returns (uint) {
-        return getUnderlyingIndex(CErc20(cToken).underlying());
+        return getUnderlyingIndex(CToken(cToken).isCEther() ? address(0) : CErc20(cToken).underlying());
     }
 
+    /// @dev Get token config index by underlying ERC20 token address
     function getUnderlyingIndex(address underlying) internal view returns (uint) {
         return _configPresenceByUnderlying[underlying] ? _configIndexesByUnderlying[underlying] : uint(-1);
     }
@@ -94,10 +116,7 @@ contract UniswapConfig {
      */
     function getTokenConfigByCToken(address cToken) public view returns (TokenConfig memory) {
         uint index = getCTokenIndex(cToken);
-        if (index != uint(-1)) {
-            return getTokenConfig(index);
-        }
-
+        if (index != uint(-1)) return getTokenConfig(index);
         revert("token config not found");
     }
 
@@ -108,10 +127,7 @@ contract UniswapConfig {
      */
     function getTokenConfigByUnderlying(address underlying) public view returns (TokenConfig memory) {
         uint index = getUnderlyingIndex(underlying);
-        if (index != uint(-1)) {
-            return getTokenConfig(index);
-        }
-
+        if (index != uint(-1)) return getTokenConfig(index);
         revert("token config not found");
     }
 }
