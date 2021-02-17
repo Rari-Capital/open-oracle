@@ -131,7 +131,7 @@ contract UniswapAnchoredView is UniswapConfig {
      * @notice Internal function to add new asset(s)
      * @param configs The static token configurations which define what prices are supported and how
      */
-    function _add(TokenConfig[] memory configs) internal {
+    function _add(TokenConfig[] memory configs) internal override {
         // For each config
         for (uint256 i = 0; i < configs.length; i++) {
             // If !canAdminOverwrite, check for existing configs
@@ -144,8 +144,8 @@ contract UniswapAnchoredView is UniswapConfig {
             _configs.push(configs[i]);
             _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
             _configPresenceByUnderlying[configs[i].underlying] = true;
-            _configIndexesBySymbolHash[configs[i].underlying] = _configs.length - 1;
-            _configPresenceBySymbolHash[configs[i].underlying] = true;
+            _configIndexesBySymbolHash[configs[i].symbolHash] = _configs.length - 1;
+            _configPresenceBySymbolHash[configs[i].symbolHash] = true;
         }
     }
 

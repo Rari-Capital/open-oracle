@@ -28,7 +28,7 @@ contract ReporterView is UniswapConfig {
     bool public reporterInvalidated;
 
     /// @notice The event emitted when new prices are posted but the stored price is not updated due to the anchor
-    event PriceGuarded(string symbol, uint reporter, uint anchor);
+    event PriceGuarded(string symbol, uint reporter);
 
     /// @notice The event emitted when the stored price is updated
     event PriceUpdated(string symbol, uint price);
@@ -79,7 +79,7 @@ contract ReporterView is UniswapConfig {
      * @notice Internal function to add new asset(s)
      * @param configs The static token configurations which define what prices are supported and how
      */
-    function _add(TokenConfig[] memory configs) internal {
+    function _add(TokenConfig[] memory configs) internal override {
         // For each config
         for (uint256 i = 0; i < configs.length; i++) {
             // If !canAdminOverwrite, check for existing configs
@@ -92,8 +92,8 @@ contract ReporterView is UniswapConfig {
             _configs.push(configs[i]);
             _configIndexesByUnderlying[configs[i].underlying] = _configs.length - 1;
             _configPresenceByUnderlying[configs[i].underlying] = true;
-            _configIndexesBySymbolHash[configs[i].underlying] = _configs.length - 1;
-            _configPresenceBySymbolHash[configs[i].underlying] = true;
+            _configIndexesBySymbolHash[configs[i].symbolHash] = _configs.length - 1;
+            _configPresenceBySymbolHash[configs[i].symbolHash] = true;
         }
     }
 

@@ -17,7 +17,8 @@ contract UniswapConfig {
         FIXED_ETH, /// implies the fixedPrice is a constant multiple of the ETH price (which varies)
         FIXED_USD, /// implies the fixedPrice is a constant multiple of the USD price (which is 1)
         REPORTER,  /// implies the price is set by the reporter (only available on UniswapAnchoredView)
-        TWAP       /// implies the price is set by TWAPs (only available on UniswapView)
+        TWAP,      /// implies the price is set by TWAPs (only available on UniswapView)
+        UNISWAP    /// implies the price is set by the direct Uniswap price (only available on UniswapDirectView)
     }
 
     /// @dev Describe how the USD price should be determined for an asset.
@@ -65,7 +66,7 @@ contract UniswapConfig {
      * @dev Internal function to add new asset(s)
      * @param configs The static token configurations which define what prices are supported and how
      */
-    function _add(TokenConfig[] memory configs) internal {
+    function _add(TokenConfig[] memory configs) internal virtual {
         // For each config
         for (uint256 i = 0; i < configs.length; i++) {
             // If !canAdminOverwrite, check for existing config
