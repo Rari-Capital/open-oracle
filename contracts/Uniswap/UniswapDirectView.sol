@@ -105,7 +105,7 @@ contract UniswapDirectView is UniswapConfig {
      * @notice Initialize token configs
      * @param configs The static token configurations which define what prices are supported and how
      */
-    function initConfigs(TokenConfig[] memory configs) internal {
+    function initConfigs(TokenConfig[] memory configs) internal pure {
         for (uint i = 0; i < configs.length; i++) {
             TokenConfig memory config = configs[i];
             require(config.baseUnit > 0, "baseUnit must be greater than zero");
@@ -143,9 +143,9 @@ contract UniswapDirectView is UniswapConfig {
     }
 
     function priceInternal(TokenConfig memory config) internal view returns (uint) {
-        if (config.priceSource == PriceSource.UNISWAP) return fetchAnchorPrice(config.underlying, config);
+        if (config.priceSource == PriceSource.UNISWAP) return fetchAnchorPrice(config);
         if (config.priceSource == PriceSource.FIXED_USD) {
-            uint ethPerUsd = fetchAnchorPrice(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, getTokenConfigByUnderlying(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48));
+            uint ethPerUsd = fetchAnchorPrice(getTokenConfigByUnderlying(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48));
             return mul(config.fixedPrice, ethPerUsd) / 1e6;
         }
         if (config.priceSource == PriceSource.FIXED_ETH) return config.fixedPrice;
@@ -168,7 +168,7 @@ contract UniswapDirectView is UniswapConfig {
     /**
      * @dev Fetches the current token/ETH price from Uniswap, with 18 decimals of precision.
      */
-    function fetchAnchorPrice(address underlying, TokenConfig memory config) internal virtual returns (uint) {
+    function fetchAnchorPrice(TokenConfig memory config) internal view virtual returns (uint) {
         (uint reserve0, uint reserve1, ) = IUniswapV2Pair(config.uniswapMarket).getReserves();
         uint rawUniswapPriceMantissa = UniswapV2Library.getAmountOut(config.baseUnit, config.isUniswapReversed ? reserve1 : reserve0, config.isUniswapReversed ? reserve0 : reserve1);
         uint unscaledPriceMantissa = mul(rawUniswapPriceMantissa, 1e18);

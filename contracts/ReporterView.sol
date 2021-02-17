@@ -68,7 +68,7 @@ contract ReporterView is UniswapConfig {
      * @notice Initialize token configs
      * @param configs The static token configurations which define what prices are supported and how
      */
-    function initConfigs(TokenConfig[] memory configs) internal {
+    function initConfigs(TokenConfig[] memory configs) internal pure {
         for (uint i = 0; i < configs.length; i++) {
             TokenConfig memory config = configs[i];
             require(config.baseUnit > 0, "baseUnit must be greater than zero");
