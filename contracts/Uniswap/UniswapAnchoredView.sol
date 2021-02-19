@@ -66,6 +66,8 @@ contract UniswapAnchoredView is UniswapConfig {
     event ReporterInvalidated(address reporter);
 
     bytes32 constant ethHash = keccak256(abi.encodePacked("ETH"));
+    bytes32 constant btcSymbolHash = keccak256(abi.encodePacked("BTC"));
+    bytes32 constant wbtcSymbolHash = keccak256(abi.encodePacked("WBTC"));
     bytes32 constant rotateHash = keccak256(abi.encodePacked("rotate"));
 
     /// @dev Maps symbol hashes to token config indexes
@@ -73,6 +75,9 @@ contract UniswapAnchoredView is UniswapConfig {
 
     /// @dev Maps symbol hashes to booleans indicating if they have token configs
     mapping(bytes32 => bool) internal _configPresenceBySymbolHash;
+
+    /// @dev Boolean indicating if Uniswap anchors are verified
+    mapping(bytes32 => bool) public isSecure;
 
     /**
      * @notice Construct a uniswap anchored view for a set of token configurations
@@ -89,18 +94,76 @@ contract UniswapAnchoredView is UniswapConfig {
                 uint anchorToleranceMantissa_,
                 uint anchorPeriod_,
                 TokenConfig[] memory configs,
-                bool _canAdminOverwrite) UniswapConfig(configs, _canAdminOverwrite) public {
+                bool _canAdminOverwrite,
+                bool _isSecure) UniswapConfig(configs, _canAdminOverwrite) public {
         // Initialize variables
         priceData = priceData_;
         reporter = reporter_;
         anchorPeriod = anchorPeriod_;
+        isSecure = _isSecure;
 
         // Allow the tolerance to be whatever the deployer chooses, but prevent under/overflow (and prices from being 0)
         upperBoundAnchorRatio = anchorToleranceMantissa_ > uint(-1) - 100e16 ? uint(-1) : 100e16 + anchorToleranceMantissa_;
         lowerBoundAnchorRatio = anchorToleranceMantissa_ < 100e16 ? 100e16 - anchorToleranceMantissa_ : 1;
 
+        // If secure, require !canAdminOverwrite and checkTokenConfigs
+        if (isSecure) {
+            require(!canAdminOverwrite, "canAdminOverwrite must be set to false for secure UniswapView contracts.");
+            checkTokenConfigs(configs);
+        }
+
         // Initialize token configs
         initConfigs(configs);
+    }
+
+    /**
+     * @dev Verifies token configs
+     * @param configs The configs for the supported assets
+     */
+    function checkTokenConfigs(TokenConfig[] memory configs) internal view {
+        for (uint256 i = 0; i < configs.length; i++) {
+            // Check symbolHash for ETH
+            if (configs[i].symbolHash != ethHash) {
+                require(configs[i].uniswapMarket == 0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc, "Incorrect Uniswap market for ETH: must be USDC-ETH.");
+                require(!configs[i].isUniswapReversed, "Incorrect Uniswap market reversal for ETH: must be USDC-ETH (not reversed).");
+                require(configs[i].underlying == address(0), "Underlying token address must be the zero address for ETH.");
+                require(configs[i].fixedPrice == 0, "ETH token config fixed price must be 0.");
+                require(configs[i].baseUnit == ethBaseUnit, "ETH token config base unit must be 1e18.");
+                continue;
+            }
+
+            // Check symbolHash against underlying symbol (with exception for WBTC/BTC)
+            bytes32 realSymbolHash = keccak256(abi.encodePacked(IERC20(configs[i].underlying).symbol()));
+            require(realSymbolHash == configs[i].symbolHash || (realSymbolHash == wbtcSymbolHash && configs[i].symbolHash == btcSymbolHash), "Symbol mismatch between token config and ERC20 symbol method.");
+
+            // Check baseUnit against underlying decimals
+            require(10 ** uint256(IERC20(configs[i].underlying).decimals()) == configs[i].baseUnit, "Incorrect token config base unit.");
+
+            // Check for WETH
+            if (configs[i].underlying == WETH_ADDRESS) {
+                // Check price source
+                require(configs[i].priceSource == PriceSource.FIXED_ETH, "Invalid WETH token config price source: must be FIXED_ETH.");
+                
+                // Check fixed price
+                require(configs[i].fixedPrice == 1e18, "WETH token config fixed price must be 1e18.");
+
+                // Check uniswapMarket and isUniswapReversed
+                require(configs[i].uniswapMarket == address(0), "WETH Uniswap market not necessary.");
+                configs[i].isUniswapReversed = false;
+            } else {
+                // Check price source
+                require(configs[i].priceSource == PriceSource.UNISWAP, "Invalid token config price source: must be UNISWAP.");
+
+                // Check fixed price
+                require(configs[i].fixedPrice == 0, "Token config fixed price must be 0.");
+
+                // Check uniswapMarket and isUniswapReversed
+                IUniswapV2Pair pair = IUniswapV2Pair(UniswapV2Library.pairFor(UNISWAP_V2_FACTORY_ADDRESS, configs[i].underlying, WETH_ADDRESS));
+                require(configs[i].uniswapMarket == address(pair), "Token config Uniswap market is not correct.");
+                address token0 = pair.token0();
+                require((token0 == configs[i].underlying && !configs[i].isUniswapReversed) || (token0 != configs[i].underlying && configs[i].isUniswapReversed), "Token config Uniswap reversal is incorrect.");
+            }
+        }
     }
 
     /**
