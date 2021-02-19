@@ -273,6 +273,23 @@ contract UniswapView is UniswapConfig {
     }
 
     /**
+     * @dev Get both stored and pending prices for `underlyings` for comparison off-chain to determine if posting is needed.
+     */
+    function storedAndPendingPrices(address[] calldata underlyings) external view returns (uint256[] memory, uint256[] memory) {
+        uint256[] memory storedPrices = new uint256[](underlyings.length);
+        uint256[] memory pendingPrices = new uint256[](underlyings.length);
+
+        for (uint256 i = 0; i < underlyings.length; i++) {
+            TokenConfig memory config = getTokenConfigByUnderlying(underlying);
+            require(config.priceSource == PriceSource.TWAP, "only TWAP prices get posted");
+            storedPrices[i] = prices[underlying];
+            pendingPrices[i] = fetchAnchorPrice(underlying, config);
+        }
+
+        return (storedPrices, pendingPrices);
+    }
+
+    /**
      * @dev Get time-weighted average prices for a token at the current timestamp.
      *  Update new and old observations of lagging window if period elapsed.
      */
