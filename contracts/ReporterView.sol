@@ -124,11 +124,15 @@ contract ReporterView is UniswapConfig {
         if (config.symbolHash == ethHash) return ethBaseUnit;
         if (config.priceSource == PriceSource.REPORTER) {
             // Prices are stored in terms of USD so we use the ETH/USD price to convert to ETH
+            postPriceInternal("ETH"); // Try to post ETH price
             uint usdPerEth = prices[ethHash];
             require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
+            if (prices[config.symbolHash] <= 0) postPriceInternal(config.symbol, config, false); // Try to post price if not set
             return mul(prices[config.symbolHash], ethBaseUnit) / usdPerEth;
         }
         if (config.priceSource == PriceSource.FIXED_USD) {
+            // Convert from fixed USD to ETH
+            if (prices[ethHash] <= 0) postPriceInternal("ETH"); // Try to post price if not set
             uint usdPerEth = prices[ethHash];
             require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
             return mul(config.fixedPrice, ethBaseUnit) / usdPerEth;
@@ -167,12 +171,15 @@ contract ReporterView is UniswapConfig {
 
         // Try to update the view storage
         for (uint i = 0; i < symbols.length; i++) {
-            postPriceInternal(symbols[i]);
+            postPriceInternal(symbols[i], getTokenConfigBySymbol(symbol), true);
         }
     }
 
     function postPriceInternal(string memory symbol) internal {
-        TokenConfig memory config = getTokenConfigBySymbol(symbol);
+        postPriceInternal(symbol, getTokenConfigBySymbol(symbol), false);
+    }
+
+    function postPriceInternal(string memory symbol, TokenConfig memory config, bool forceUpdate) internal {
         require(config.priceSource == PriceSource.REPORTER, "only reporter prices get posted");
 
         bytes32 symbolHash = keccak256(abi.encodePacked(symbol));
@@ -180,7 +187,7 @@ contract ReporterView is UniswapConfig {
 
         if (reporterInvalidated) {
             emit PriceGuarded(symbol, reporterPrice);
-        } else {
+        } else if (prices[symbolHash] != reporterPrice || forceUpdate) {
             prices[symbolHash] = reporterPrice;
             emit PriceUpdated(symbol, reporterPrice);
         }
