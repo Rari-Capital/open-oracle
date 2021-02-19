@@ -48,15 +48,20 @@ contract UniswapConfig {
     /// @notice Whether or not existing token configs can be overwritten
     bool public canAdminOverwrite;
 
+    /// @notice The maxmimum number of seconds elapsed since the price was last updated before it is considered stale. If set to 0, no limit is enforced.
+    uint256 public maxSecondsBeforePriceIsStale;
+
     /**
      * @notice Construct an immutable store of configs into the contract data
      * @param configs The configs for the supported assets
      * @param _canAdminOverwrite Whether or not existing token configs can be overwritten
+     * @param _maxSecondsBeforePriceIsStale The maxmimum number of seconds elapsed since the price was last updated before it is considered stale. If set to 0, no limit is enforced.
      */
-    constructor(TokenConfig[] memory configs, bool _canAdminOverwrite) public {
+    constructor(TokenConfig[] memory configs, bool _canAdminOverwrite, uint256 _maxSecondsBeforePriceIsStale) public {
         // Initialize variables
         admin = msg.sender;
         canAdminOverwrite = _canAdminOverwrite;
+        maxSecondsBeforePriceIsStale = _maxSecondsBeforePriceIsStale;
 
         // Add configs
         _add(configs);

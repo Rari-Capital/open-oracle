@@ -95,7 +95,8 @@ contract UniswapAnchoredView is UniswapConfig {
                 uint anchorPeriod_,
                 TokenConfig[] memory configs,
                 bool _canAdminOverwrite,
-                bool _isSecure) UniswapConfig(configs, _canAdminOverwrite) public {
+                bool _isSecure,
+                uint256 _maxSecondsBeforePriceIsStale) UniswapConfig(configs, _canAdminOverwrite, _maxSecondsBeforePriceIsStale) public {
         // Initialize variables
         priceData = priceData_;
         reporter = reporter_;
@@ -241,12 +242,18 @@ contract UniswapAnchoredView is UniswapConfig {
             // Prices are stored in terms of USD so we use the ETH/USD price to convert to ETH
             uint usdPerEth = prices[ethHash];
             require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
-            return mul(prices[config.symbolHash], ethBaseUnit) / usdPerEth;
+            uint256 averageObservationTimestamp = (oldObservations[ethHash].timestamp + newObservations[ethHash].timestamp) / 2;
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "ETH TWAP price is stale; cannot convert from USD to ETH.");
+            averageObservationTimestamp = (oldObservations[config.symbolHash].timestamp + newObservations[config.symbolHash].timestamp) / 2;
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "TWAP price is stale.");
+            return mul(prices[config.symbolHash], ethBaseUnit) / usdPerEth; // usdPrice * 1e18 / usdPerEth = ethPrice
         }
         if (config.priceSource == PriceSource.FIXED_USD) {
             uint usdPerEth = prices[ethHash];
             require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
-            return mul(config.fixedPrice, ethBaseUnit) / usdPerEth;
+            uint256 averageObservationTimestamp = (oldObservations[ethHash].timestamp + newObservations[ethHash].timestamp) / 2;
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "ETH TWAP price is stale; cannot convert from USD to ETH.");
+            return mul(config.fixedPrice, ethBaseUnit) / usdPerEth; // usdPrice * 1e18 / usdPerEth = ethPrice
         }
         if (config.priceSource == PriceSource.FIXED_ETH) return config.fixedPrice;
     }

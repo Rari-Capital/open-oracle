@@ -56,11 +56,13 @@ contract UniswapView is UniswapConfig {
      * @param configs The static token configurations which define what prices are supported and how
      * @param _canAdminOverwrite Whether or not existing token configs can be overwritten (must be false if `_isPublic` is true)
      * @param _isPublic If true, anyone can add assets, but they will be validated
+     * @param _maxSecondsBeforePriceIsStale The maxmimum number of seconds elapsed since the price was last updated before it is considered stale. If set to 0, no limit is enforced.
      */
     constructor(uint anchorPeriod_,
                 TokenConfig[] memory configs,
                 bool _canAdminOverwrite,
-                bool _isPublic) UniswapConfig(configs, _canAdminOverwrite) public {
+                bool _isPublic,
+                uint256 _maxSecondsBeforePriceIsStale) UniswapConfig(configs, _canAdminOverwrite, _maxSecondsBeforePriceIsStale) public {
         // Initialize variables
         anchorPeriod = anchorPeriod_;
         isPublic = _isPublic;
@@ -178,11 +180,17 @@ contract UniswapView is UniswapConfig {
     }
 
     function priceInternal(TokenConfig memory config) internal view returns (uint) {
-        if (config.priceSource == PriceSource.TWAP) return prices[config.underlying];
+        if (config.priceSource == PriceSource.TWAP) {
+            uint256 averageObservationTimestamp = (oldObservations[underlying].timestamp + newObservations[underlying].timestamp) / 2;
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "TWAP price is stale.");
+            return prices[config.underlying];
+        }
         if (config.priceSource == PriceSource.FIXED_USD) {
             // Use USDC/ETH price (requires a TWAP-based token config for USDC) to convert from USD to ETH
             uint ethPerUsd = prices[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48];
-            require(ethPerUsd > 0, "USDC price not set, cannot convert from USD to ETH");
+            require(ethPerUsd > 0, "USDC price not set; cannot convert from USD to ETH.");
+            uint256 averageObservationTimestamp = (oldObservations[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48].timestamp + newObservations[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48].timestamp) / 2;
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "USDC TWAP price is stale; cannot convert from USD to ETH.");
             return mul(config.fixedPrice, ethPerUsd) / 1e6;
         }
         if (config.priceSource == PriceSource.FIXED_ETH) return config.fixedPrice;

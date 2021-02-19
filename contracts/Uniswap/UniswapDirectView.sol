@@ -34,7 +34,7 @@ contract UniswapDirectView is UniswapConfig {
      */
     constructor(TokenConfig[] memory configs,
                 bool _canAdminOverwrite,
-                bool _isPublic) UniswapConfig(configs, _canAdminOverwrite) public {
+                bool _isPublic) UniswapConfig(configs, _canAdminOverwrite, 0) public {
         // Initialize variables
         isPublic = _isPublic;
 
