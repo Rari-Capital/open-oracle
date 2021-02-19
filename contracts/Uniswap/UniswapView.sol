@@ -147,6 +147,7 @@ contract UniswapView is UniswapConfig {
                 newObservations[underlying].acc = cumulativePrice;
                 emit UniswapWindowUpdated(underlying, block.timestamp, block.timestamp, cumulativePrice, cumulativePrice);
             } else {
+                require(config.underlying != 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48, "USDC must be TWAP because FIXED_USD prices are based on the USDC price.");
                 require(uniswapMarket == address(0), "only TWAP prices utilize a Uniswap market");
             }
         }
