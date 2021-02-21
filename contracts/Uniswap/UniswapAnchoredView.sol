@@ -78,7 +78,7 @@ contract UniswapAnchoredView is UniswapConfig {
     mapping(bytes32 => bool) internal _configPresenceBySymbolHash;
 
     /// @dev Boolean indicating if Uniswap anchors are verified
-    mapping(bytes32 => bool) public isSecure;
+    bool public isSecure;
 
     /**
      * @notice Construct a uniswap anchored view for a set of token configurations
@@ -119,6 +119,16 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     /**
+     * @dev UniswapV2Factory contract address.
+     */
+    address constant private UNISWAP_V2_FACTORY_ADDRESS = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
+    
+    /**
+     * @dev WETH contract address.
+     */
+    address constant private WETH_ADDRESS = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+
+    /**
      * @dev Verifies token configs
      * @param configs The configs for the supported assets
      */
@@ -126,7 +136,7 @@ contract UniswapAnchoredView is UniswapConfig {
         for (uint256 i = 0; i < configs.length; i++) {
             // Check symbolHash for ETH
             if (configs[i].symbolHash != ethHash) {
-                require(configs[i].uniswapMarket == 0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc, "Incorrect Uniswap market for ETH: must be USDC-ETH.");
+                require(configs[i].uniswapMarket == 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc, "Incorrect Uniswap market for ETH: must be USDC-ETH.");
                 require(!configs[i].isUniswapReversed, "Incorrect Uniswap market reversal for ETH: must be USDC-ETH (not reversed).");
                 require(configs[i].underlying == address(0), "Underlying token address must be the zero address for ETH.");
                 require(configs[i].fixedPrice == 0, "ETH token config fixed price must be 0.");

@@ -182,7 +182,7 @@ contract UniswapView is UniswapConfig {
 
     function priceInternal(TokenConfig memory config) internal view returns (uint) {
         if (config.priceSource == PriceSource.TWAP) {
-            uint256 averageObservationTimestamp = (oldObservations[underlying].timestamp + newObservations[underlying].timestamp) / 2;
+            uint256 averageObservationTimestamp = (oldObservations[config.underlying].timestamp + newObservations[config.underlying].timestamp) / 2;
             if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "TWAP price is stale.");
             return prices[config.underlying];
         }
@@ -276,11 +276,12 @@ contract UniswapView is UniswapConfig {
     /**
      * @dev Get both stored and pending prices for `underlyings` for comparison off-chain to determine if posting is needed.
      */
-    function storedAndPendingPrices(address[] calldata underlyings) external view returns (uint256[] memory, uint256[] memory) {
+    function storedAndPendingPrices(address[] calldata underlyings) external returns (uint256[] memory, uint256[] memory) {
         uint256[] memory storedPrices = new uint256[](underlyings.length);
         uint256[] memory pendingPrices = new uint256[](underlyings.length);
 
         for (uint256 i = 0; i < underlyings.length; i++) {
+            address underlying = underlyings[i];
             TokenConfig memory config = getTokenConfigByUnderlying(underlying);
             require(config.priceSource == PriceSource.TWAP, "only TWAP prices get posted");
             storedPrices[i] = prices[underlying];

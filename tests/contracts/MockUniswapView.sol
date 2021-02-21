@@ -9,7 +9,7 @@ contract MockUniswapView is UniswapView {
     mapping(address => uint) public anchorPrices;
 
     constructor(uint anchorPeriod_,
-                TokenConfig[] memory configs) UniswapView(anchorPeriod_, configs, false, false) public {}
+                TokenConfig[] memory configs) UniswapView(anchorPeriod_, configs, false, false, 0) public {}
 
     function setAnchorPrice(address underlying, uint price) external {
         anchorPrices[underlying] = price;
