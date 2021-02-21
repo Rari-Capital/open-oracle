@@ -11,9 +11,10 @@ struct Observation {
     uint acc;
 }
 
-contract UniswapDirectView is UniswapConfig {
+contract UniswapSpotView is UniswapConfig {
     using FixedPoint for *;
     
+    /// @notice Constant indicating that this contract is a UniswapSpotView
     bool constant public IS_UNISWAP_VIEW = true;
 
     /// @notice The number of wei in 1 ETH
@@ -28,7 +29,7 @@ contract UniswapDirectView is UniswapConfig {
     bytes32 constant ethHash = keccak256(abi.encodePacked("ETH"));
 
     /**
-     * @notice Construct a direct uniswap price view for a set of token configurations
+     * @notice Construct a Uniswap spot price view for a set of token configurations
      * @param configs The static token configurations which define what prices are supported and how
      * @param _isPublic If true, anyone can add assets, but they will be validated
      */
@@ -41,7 +42,7 @@ contract UniswapDirectView is UniswapConfig {
         // If public, force set admin to 0, require !canAdminOverwrite, and check token configs
         if (isPublic) {
             admin = address(0);
-            require(!canAdminOverwrite, "canAdminOverwrite must be set to false for public UniswapDirectView contracts.");
+            require(!canAdminOverwrite, "canAdminOverwrite must be set to false for public UniswapSpotView contracts.");
             checkTokenConfigs(configs);
         }
 
@@ -143,9 +144,9 @@ contract UniswapDirectView is UniswapConfig {
     }
 
     function priceInternal(TokenConfig memory config) internal view returns (uint) {
-        if (config.priceSource == PriceSource.UNISWAP) return fetchAnchorPrice(config);
+        if (config.priceSource == PriceSource.UNISWAP) return fetchSpotPrice(config);
         if (config.priceSource == PriceSource.FIXED_USD) {
-            uint ethPerUsd = fetchAnchorPrice(getTokenConfigByUnderlying(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48));
+            uint ethPerUsd = fetchSpotPrice(getTokenConfigByUnderlying(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48));
             return mul(config.fixedPrice, ethPerUsd) / 1e6;
         }
         if (config.priceSource == PriceSource.FIXED_ETH) return config.fixedPrice;
@@ -168,22 +169,10 @@ contract UniswapDirectView is UniswapConfig {
     /**
      * @dev Fetches the current token/ETH price from Uniswap, with 18 decimals of precision.
      */
-    function fetchAnchorPrice(TokenConfig memory config) internal view virtual returns (uint) {
-        (uint reserve0, uint reserve1, ) = IUniswapV2Pair(config.uniswapMarket).getReserves();
-        uint rawUniswapPriceMantissa = UniswapV2Library.getAmountOut(config.baseUnit, config.isUniswapReversed ? reserve1 : reserve0, config.isUniswapReversed ? reserve0 : reserve1);
-        uint unscaledPriceMantissa = mul(rawUniswapPriceMantissa, 1e18);
-
-        // Adjust rawUniswapPrice according to the units of the non-ETH asset
-
-        // In the case of non-ETH tokens
-        // a. priceAverage will always be Token/ETH current price
-        // b. conversionFactor = 1e18
-        // unscaledPriceMantissa = priceAverage(token/ETH current price) * expScale * conversionFactor
-        // so ->
-        // anchorPrice = priceAverage * tokenBaseUnit / ethBaseUnit * 1e18
-        //             = priceAverage * conversionFactor * tokenBaseUnit / ethBaseUnit
-        //             = unscaledPriceMantissa / expScale * tokenBaseUnit / ethBaseUnit
-        return mul(unscaledPriceMantissa, config.baseUnit) / ethBaseUnit / expScale;
+    function fetchSpotPrice(TokenConfig memory config) internal view virtual returns (uint) {
+        (uint reserve0, uint reserve1, uint blockTimestampLast) = IUniswapV2Pair(config.uniswapMarket).getReserves();
+        require(block.timestamp > blockTimestampLast, "Uniswap LP token was updated in this block. Reverting due to risk of price manipulation.");
+        return UniswapV2Library.getAmountOut(config.baseUnit, config.isUniswapReversed ? reserve1 : reserve0, config.isUniswapReversed ? reserve0 : reserve1);
     }
 
     /// @dev Overflow proof multiplication

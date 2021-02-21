@@ -14,6 +14,7 @@ struct Observation {
 contract UniswapView is UniswapConfig {
     using FixedPoint for *;
     
+    /// @notice Constant indicating that this contract is a UniswapView
     bool constant public IS_UNISWAP_VIEW = true;
 
     /// @notice The number of wei in 1 ETH

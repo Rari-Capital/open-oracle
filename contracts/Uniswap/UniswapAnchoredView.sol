@@ -15,6 +15,7 @@ struct Observation {
 contract UniswapAnchoredView is UniswapConfig {
     using FixedPoint for *;
     
+    /// @notice Constant indicating that this contract is a UniswapAnchoredView
     bool public constant IS_UNISWAP_ANCHORED_VIEW = true;
 
     /// @notice The Open Oracle Price Data contract
