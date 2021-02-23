@@ -3,13 +3,7 @@
 pragma solidity ^0.6.10;
 pragma experimental ABIEncoderV2;
 
-interface CToken {
-    function isCEther() external view returns (bool);
-}
-
-interface CErc20 {
-    function underlying() external view returns (address);
-}
+import { CToken, CErc20 } from "./UniswapLib.sol";
 
 contract UniswapConfig {
     /// @dev Describe how to interpret the fixedPrice in the TokenConfig.
