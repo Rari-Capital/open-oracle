@@ -42,6 +42,9 @@ contract UniswapAnchoredView is UniswapConfig {
     /// @notice Official prices by symbol hash
     mapping(bytes32 => uint) public prices;
 
+    /// @notice Official price timestamps by symbol hash
+    mapping(bytes32 => uint) public priceTimestamps;
+
     /// @notice Circuit breaker for using anchor price oracle directly, ignoring reporter
     bool public reporterInvalidated;
 
@@ -253,17 +256,14 @@ contract UniswapAnchoredView is UniswapConfig {
             // Prices are stored in terms of USD so we use the ETH/USD price to convert to ETH
             uint usdPerEth = prices[ethHash];
             require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
-            uint256 averageObservationTimestamp = (oldObservations[ethHash].timestamp + newObservations[ethHash].timestamp) / 2;
-            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "ETH TWAP price is stale; cannot convert from USD to ETH.");
-            averageObservationTimestamp = (oldObservations[config.symbolHash].timestamp + newObservations[config.symbolHash].timestamp) / 2;
-            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "TWAP price is stale.");
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= priceTimestamps[ethHash] + maxSecondsBeforePriceIsStale, "ETH TWAP price is stale; cannot convert from USD to ETH.");
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= priceTimestamps[config.symbolHash] + maxSecondsBeforePriceIsStale, "TWAP price is stale.");
             return mul(prices[config.symbolHash], ethBaseUnit) / usdPerEth; // usdPrice * 1e18 / usdPerEth = ethPrice
         }
         if (config.priceSource == PriceSource.FIXED_USD) {
             uint usdPerEth = prices[ethHash];
             require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
-            uint256 averageObservationTimestamp = (oldObservations[ethHash].timestamp + newObservations[ethHash].timestamp) / 2;
-            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "ETH TWAP price is stale; cannot convert from USD to ETH.");
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= priceTimestamps[ethHash] + maxSecondsBeforePriceIsStale, "ETH TWAP price is stale; cannot convert from USD to ETH.");
             return mul(config.fixedPrice, ethBaseUnit) / usdPerEth; // usdPrice * 1e18 / usdPerEth = ethPrice
         }
         if (config.priceSource == PriceSource.FIXED_ETH) return config.fixedPrice;
@@ -311,7 +311,7 @@ contract UniswapAnchoredView is UniswapConfig {
         require(config.priceSource == PriceSource.REPORTER, "only reporter prices get posted");
 
         bytes32 symbolHash = keccak256(abi.encodePacked(symbol));
-        uint reporterPrice = priceData.getPrice(reporter, symbol);
+        (uint reporterPrice, uint reporterTimestamp) = priceData.get(reporter, symbol);
         uint anchorPrice;
         if (symbolHash == ethHash) {
             anchorPrice = ethPrice;
@@ -321,9 +321,11 @@ contract UniswapAnchoredView is UniswapConfig {
 
         if (reporterInvalidated) {
             prices[symbolHash] = anchorPrice;
+            priceTimestamps[symbolHash] = (oldObservations[symbolHash].timestamp + newObservations[symbolHash].timestamp) / 2;
             emit PriceUpdated(symbol, anchorPrice);
         } else if (isWithinAnchor(reporterPrice, anchorPrice)) {
             prices[symbolHash] = reporterPrice;
+            priceTimestamps[symbolHash] = reporterTimestamp;
             emit PriceUpdated(symbol, reporterPrice);
         } else {
             emit PriceGuarded(symbol, reporterPrice, anchorPrice);

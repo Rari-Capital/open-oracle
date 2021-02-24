@@ -24,14 +24,17 @@ contract ReporterView is UniswapConfig {
     /// @notice Official prices by symbol hash
     mapping(bytes32 => uint) public prices;
 
+    /// @notice Official price timestamps by symbol hash
+    mapping(bytes32 => uint) public priceTimestamps;
+
     /// @notice Circuit breaker for using anchor price oracle directly, ignoring reporter
     bool public reporterInvalidated;
 
-    /// @notice The event emitted when new prices are posted but the stored price is not updated due to the anchor
-    event PriceGuarded(string symbol, uint reporter);
+    /// @notice The event emitted when new prices are posted but the stored price is not updated due to the reporter being invalidated
+    event PriceGuarded(string symbol, uint existingPrice);
 
     /// @notice The event emitted when the stored price is updated
-    event PriceUpdated(string symbol, uint price);
+    event PriceUpdated(string symbol, uint newPrice);
 
     /// @notice The event emitted when reporter invalidates itself
     event ReporterInvalidated(address reporter);
@@ -51,11 +54,13 @@ contract ReporterView is UniswapConfig {
      * @param reporter_ The reporter whose prices are to be used
      * @param configs The static token configurations which define what prices are supported and how
      * @param _canAdminOverwrite Whether or not existing token configs can be overwritten
+     * @param _maxSecondsBeforePriceIsStale The maxmimum number of seconds elapsed since the price was last updated before it is considered stale. If set to 0, no limit is enforced.
      */
     constructor(OpenOraclePriceData priceData_,
                 address reporter_,
                 TokenConfig[] memory configs,
-                bool _canAdminOverwrite) UniswapConfig(configs, _canAdminOverwrite, 0) public {
+                bool _canAdminOverwrite,
+                uint256 _maxSecondsBeforePriceIsStale) UniswapConfig(configs, _canAdminOverwrite, _maxSecondsBeforePriceIsStale) public {
         // Initialize variables
         priceData = priceData_;
         reporter = reporter_;
@@ -128,6 +133,7 @@ contract ReporterView is UniswapConfig {
             uint usdPerEth = prices[ethHash];
             require(usdPerEth > 0, "ETH price not set, cannot convert from USD to ETH");
             // if (prices[config.symbolHash] <= 0) postPriceInternal(config.symbol, config, false); // TODO: Try to post price if not set
+            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= priceTimestamps[config.symbolHash] + maxSecondsBeforePriceIsStale, "Reporter price is stale.");
             return mul(prices[config.symbolHash], ethBaseUnit) / usdPerEth;
         }
         if (config.priceSource == PriceSource.FIXED_USD) {
@@ -183,12 +189,13 @@ contract ReporterView is UniswapConfig {
         require(config.priceSource == PriceSource.REPORTER, "only reporter prices get posted");
 
         bytes32 symbolHash = keccak256(abi.encodePacked(symbol));
-        uint reporterPrice = priceData.getPrice(reporter, symbol);
+        (uint timestamp, uint reporterPrice) = priceData.get(reporter, symbol);
 
         if (reporterInvalidated) {
-            emit PriceGuarded(symbol, reporterPrice);
+            emit PriceGuarded(symbol, prices[symbolHash]);
         } else if (prices[symbolHash] != reporterPrice || forceUpdate) {
             prices[symbolHash] = reporterPrice;
+            priceTimestamps[symbolHash] = timestamp;
             emit PriceUpdated(symbol, reporterPrice);
         }
     }

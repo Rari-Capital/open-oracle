@@ -182,16 +182,20 @@ contract UniswapView is UniswapConfig {
 
     function priceInternal(TokenConfig memory config) internal view returns (uint) {
         if (config.priceSource == PriceSource.TWAP) {
-            uint256 averageObservationTimestamp = (oldObservations[config.underlying].timestamp + newObservations[config.underlying].timestamp) / 2;
-            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "TWAP price is stale.");
+            if (maxSecondsBeforePriceIsStale > 0) {
+                uint256 averageObservationTimestamp = (oldObservations[config.underlying].timestamp + newObservations[config.underlying].timestamp) / 2;
+                require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "TWAP price is stale.");
+            }
             return prices[config.underlying];
         }
         if (config.priceSource == PriceSource.FIXED_USD) {
             // Use USDC/ETH price (requires a TWAP-based token config for USDC) to convert from USD to ETH
             uint ethPerUsd = prices[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48];
             require(ethPerUsd > 0, "USDC price not set; cannot convert from USD to ETH.");
-            uint256 averageObservationTimestamp = (oldObservations[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48].timestamp + newObservations[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48].timestamp) / 2;
-            if (maxSecondsBeforePriceIsStale > 0) require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "USDC TWAP price is stale; cannot convert from USD to ETH.");
+            if (maxSecondsBeforePriceIsStale > 0) {
+                uint256 averageObservationTimestamp = (oldObservations[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48].timestamp + newObservations[0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48].timestamp) / 2;
+                require(block.timestamp <= averageObservationTimestamp + maxSecondsBeforePriceIsStale, "USDC TWAP price is stale; cannot convert from USD to ETH.");
+            }
             return mul(config.fixedPrice, ethPerUsd) / 1e6;
         }
         if (config.priceSource == PriceSource.FIXED_ETH) return config.fixedPrice;
