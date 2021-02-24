@@ -170,8 +170,8 @@ contract UniswapSpotView is UniswapConfig {
      * @dev Fetches the current token/ETH price from Uniswap, with 18 decimals of precision.
      */
     function fetchSpotPrice(TokenConfig memory config) internal view virtual returns (uint) {
-        (uint reserve0, uint reserve1, uint blockTimestampLast) = IUniswapV2Pair(config.uniswapMarket).getReserves();
-        require(block.timestamp > blockTimestampLast, "Uniswap LP token was updated in this block. Reverting due to risk of price manipulation.");
+        (uint reserve0, uint reserve1, uint32 blockTimestampLast) = IUniswapV2Pair(config.uniswapMarket).getReserves();
+        require(uint32(block.timestamp % 2 ** 32) != blockTimestampLast, "Uniswap LP token was updated in this block. Reverting due to risk of price manipulation.");
         return UniswapV2Library.getAmountOut(config.baseUnit, config.isUniswapReversed ? reserve1 : reserve0, config.isUniswapReversed ? reserve0 : reserve1);
     }
 

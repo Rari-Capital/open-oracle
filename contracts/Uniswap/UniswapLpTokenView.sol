@@ -53,7 +53,7 @@ contract UniswapLpTokenView {
     function fetchLpTokenPrice(address token) internal view virtual returns (uint) {
         IUniswapV2Pair pair = IUniswapV2Pair(token);
         uint totalSupply = pair.totalSupply();
-        (uint reserve0, uint reserve1, uint blockTimestampLast) = pair.getReserves();
+        (uint reserve0, uint reserve1, uint32 blockTimestampLast) = pair.getReserves();
         address token0 = pair.token0();
         address token1 = pair.token1();
 
@@ -67,7 +67,7 @@ contract UniswapLpTokenView {
             return mul(mul(mul(sqrtK, 2), sqrt(token0FairPrice)) / (2 ** 56), sqrt(token1FairPrice)) / (2 ** 56);
         } else {
             // Get current LP token price (ETH-based pairs only)
-            require(block.timestamp > blockTimestampLast, "Uniswap LP token was updated in this block. Reverting due to risk of price manipulation.");
+            require(uint32(block.timestamp % 2 ** 32) != blockTimestampLast, "Uniswap LP token was updated in this block. Reverting due to risk of price manipulation.");
             require(token0 == WETH_ADDRESS || token1 == WETH_ADDRESS, "Uniswap LP token not based in ETH and root oracle not available.");
             return mul(mul(token0 == WETH_ADDRESS ? reserve0 : reserve1, 2), 1e18) / totalSupply;
         }
