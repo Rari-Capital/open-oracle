@@ -167,7 +167,7 @@ contract UniswapAnchoredView is UniswapConfig {
                 configs[i].isUniswapReversed = false;
             } else {
                 // Check price source
-                require(configs[i].priceSource == PriceSource.UNISWAP, "Invalid token config price source: must be UNISWAP.");
+                require(configs[i].priceSource == PriceSource.REPORTER, "Invalid token config price source: must be REPORTER.");
 
                 // Check fixed price
                 require(configs[i].fixedPrice == 0, "Token config fixed price must be 0.");
