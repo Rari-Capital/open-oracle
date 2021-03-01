@@ -63,11 +63,9 @@ library UniswapV2OracleLibrary {
 
 interface IUniswapV2Pair {
     function token0() external view returns (address);
-    function token1() external view returns (address);
     function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
     function price0CumulativeLast() external view returns (uint);
     function price1CumulativeLast() external view returns (uint);
-    function totalSupply() external view returns (uint);
 }
 
 library UniswapV2Library {
@@ -128,13 +126,4 @@ interface CToken {
 
 interface CErc20 {
     function underlying() external view returns (address);
-}
-
-interface BasePriceOracle {
-    /**
-     * @notice Get the official price for an underlying token address
-     * @param underlying The underlying token address for which to get the price (set to zero address for ETH)
-     * @return Price denominated in ETH, with 18 decimals
-     */
-    function price(address underlying) external view returns (uint);
 }
