@@ -453,8 +453,7 @@ contract UniswapAnchoredView is UniswapConfig {
     }
 
     function getSymbolHashIndex(bytes32 symbolHash) internal view returns (uint) {
-        for (uint256 i = 0; i < _configs.length; i++) if (symbolHash == _configs[i].symbolHash) return i;
-        return uint(-1);
+        return _configPresenceBySymbolHash[symbolHash] ? _configIndexesBySymbolHash[symbolHash] : uint(-1);
     }
 
     /**
